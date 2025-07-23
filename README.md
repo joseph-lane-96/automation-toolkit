@@ -1,16 +1,51 @@
-# Automation Toolkit
+# 🧰 Automation Toolkit
 
-A collection of PowerShell and Python scripts used to automate common IT technician tasks.
+A curated set of PowerShell and Python scripts built to streamline everyday IT tasks. Designed for IT technicians and system administrators working in on-premises and Azure environments.
 
-## Scripts
+All scripts are anonymized for fast integration into your own infrastructure 🔐
 
-- `reset-user-password.ps1` – Script to reset Active Directory passwords
-- `create-user-onprem.ps1` – Auto-create AD user with home directory
-- `create-user-onprem-azure.ps1` – Auto-create new user for Azure environments
-- `report-assets.py` – (Coming soon) Export device list to CSV
+---
 
-## Tools Used
+## ⚙️ Included Scripts
 
-- PowerShell
-- Python
-- Active Directory (simulated)
+| Script                        | Purpose                                                  |
+|------------------------------|----------------------------------------------------------|
+| `reset-user-password.ps1`    | Reset user passwords in Active Directory                 |
+| `create-user-onprem.ps1`     | Create on-prem AD user with home directory setup         |
+| `create-user-onprem-azure.ps1` | Create hybrid user for Azure-integrated environments  |
+| `user-offboarding.ps1`       | Offboard user and wipe associated Intune-managed devices |
+| `report-assets.py`           | *(Coming Soon)* Export asset list to CSV for audit use   |
+
+---
+
+## 🛠️ Technologies Used
+
+- 💻 PowerShell
+- 🐍 Python
+- 🧩 Active Directory (simulated)
+
+---
+
+## 📦 Deployment Notes
+
+Each script is built with modularity and safety in mind:
+- Secure credential prompts and logging
+- Clear comments for easy customization
+- Designed for enterprise readiness and quick testing
+
+---
+
+## 📅 Roadmap
+
+- [x] User provisioning and offboarding
+- [x] Device wipe integration with Intune
+- [ ] CSV-driven bulk automation
+- [ ] GUI launcher for technician use
+
+---
+
+## 📬 Contributions & Feedback
+
+Ideas, improvements, or issues? Feel free to open a pull request or drop an issue in the repo.
+
+Happy automating! 🚀
