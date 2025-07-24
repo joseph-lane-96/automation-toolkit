@@ -2,7 +2,6 @@
 # Required modules:
 #   - Microsoft Graph SDK:      Install-Module Microsoft.Graph -Scope CurrentUser -Force
 #   - Exchange Online Mgmt:     Install-Module ExchangeOnlineManagement -Scope CurrentUser -Force
-#
 # Required permissions:
 #   - Microsoft Graph: Directory.ReadWrite.All, User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All
 #   - Exchange Online: Mailbox access via admin role
@@ -14,19 +13,19 @@ Import-Module Microsoft.Graph.Identity.DirectoryManagement
 Import-Module ExchangeOnlineManagement
 
 # ------------------ CONFIGURATION ------------------
-$PrimaryAdmins        = "admin1@yourdomain.com","admin2@yourdomain.com"
-$DomainName           = "yourdomain.com"
-$EmailSender          = "itadmin@$DomainName"
+$PrimaryAdmins        = "zak.horrocks@alphaplus.co.uk","jack.hughes@alphaplus.co.uk","joe.lane@alphaplus.co.uk","dan.creighton@alphaplus.co.uk","ziyan.amjid@alphaplus.co.uk"
+$DomainName           = "alphaplus.co.uk"
+$EmailSender          = "admin@$DomainName"
 $SMTPServer           = "smtp.office365.com"
+$SMTPPort             = 587
 $DefaultGroupName     = "AllStaff"
 $UnlicensedGroupName  = "Unlicensed"
 $UserTimeZone         = "GMT Standard Time"
 
-# Map license SKUs to friendly names
 $LicenseLabels = @{
-    "BUSINESS_PREMIUM"     = "Microsoft 365 Business Premium"
-    "BUSINESS_STANDARD"    = "Microsoft 365 Business Standard"
-    "ENTERPRISEPACK"       = "Microsoft 365 Enterprise E3"
+    "BUSINESS_PREMIUM"  = "Microsoft 365 Business Premium"
+    "BUSINESS_STANDARD" = "Microsoft 365 Business Standard"
+    "ENTERPRISEPACK"    = "Microsoft 365 Enterprise E3"
 }
 
 # ------------------ UTILITY FUNCTIONS ------------------
@@ -55,13 +54,13 @@ do {
     Write-Host "`n🆕 Start provisioning a new user..."
 
     # -- Collect user input --
-    $FirstName = Read-Host "First Name"
-    $LastName  = Read-Host "Last Name"
-    $JobTitle  = Read-Host "Job Title"
-    $Username  = ("$FirstName.$LastName").ToLower()
-    $UPN       = "$Username@$DomainName"
-    $Password  = Generate-RandomPassword
-    $TimeStamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $FirstName  = Read-Host "First Name"
+    $LastName   = Read-Host "Last Name"
+    $JobTitle   = Read-Host "Job Title"
+    $Username   = ("$FirstName.$LastName").ToLower()
+    $UPN        = "$Username@$DomainName"
+    $Password   = Generate-RandomPassword
+    $TimeStamp  = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $GroupsAssigned = @()
     $LicenseStatus  = ""
 
@@ -79,15 +78,12 @@ do {
             -DisplayName "$FirstName $LastName" `
             -UserPrincipalName $UPN `
             -MailNickname $Username `
-            -PasswordProfile @{ 
-                Password = $Password
-                ForceChangePasswordNextSignIn = $true 
-            } `
+            -PasswordProfile @{ Password = $Password; ForceChangePasswordNextSignIn = $true } `
             -GivenName $FirstName `
             -Surname $LastName `
             -JobTitle $JobTitle `
             -UsageLocation "GB" `
-            -Mail @{} # Avoids mail sync issues
+            -Mail @{}
 
         Write-Host "✅ Created user: $UPN"
         Write-Host "🔑 Assigned password: $Password"
@@ -97,7 +93,7 @@ do {
         continue
     }
 
-    # -- Add to AllStaff group --
+    # -- Group assignment --
     try {
         $AllStaffId = Get-GroupIdByName $DefaultGroupName
         Add-MgGroupMember -GroupId $AllStaffId -DirectoryObjectId $User.Id
@@ -109,14 +105,12 @@ do {
 
     # -- License assignment --
     $AssignBP = Read-Host "Assign Business Premium license? (y/n)"
-    if ($AssignBP -eq "y") {
-        $LicenseSku = "BUSINESS_PREMIUM"
-    } else {
+    $LicenseSku = if ($AssignBP -eq "y") { "BUSINESS_PREMIUM" } else {
         Write-Host "`n📋 Available license SKUs:"
         foreach ($Key in $LicenseLabels.Keys) {
             Write-Host "- $LicenseLabels[$Key] (`$Key`)"
         }
-        $LicenseSku = Read-Host "Enter alternate SKU or press Enter to skip"
+        Read-Host "Enter alternate SKU or press Enter to skip"
     }
 
     if (![string]::IsNullOrWhiteSpace($LicenseSku)) {
@@ -125,7 +119,6 @@ do {
             $Sku = $AllSkus | Where-Object {
                 $_.SkuPartNumber -eq $LicenseSku -and $_.PrepaidUnits.Enabled -gt $_.ConsumedUnits
             }
-
             if ($Sku) {
                 Set-MgUserLicense -UserId $User.Id -AddLicenses @{SkuId = $Sku.SkuId} -RemoveLicenses @()
                 $LicenseStatus = "Licensed: $($LicenseLabels[$LicenseSku])"
@@ -141,7 +134,7 @@ do {
         $LicenseStatus = "Unlicensed"
     }
 
-    # -- Add to Unlicensed group if needed --
+    # -- Assign to Unlicensed group if needed --
     if ($LicenseStatus -eq "Unlicensed") {
         try {
             $UnlicensedId = Get-GroupIdByName $UnlicensedGroupName
@@ -154,33 +147,29 @@ do {
     }
 
     # ------------------ WAIT FOR MAILBOX ------------------
-    $Mailbox = $null
-    $MaxWaitTime = 120   # seconds
-    $Interval     = 10
-    $Waited       = 0
+    $Mailbox     = $null
+    $MaxWaitTime = 120
+    $Interval    = 10
+    $Waited      = 0
 
     Write-Host "`n⏳ Waiting for mailbox to be provisioned for $UPN..."
 
-    try {
-        Connect-ExchangeOnline -ShowProgress:$false -ErrorAction Stop
-    } catch {
+    try { Connect-ExchangeOnline -ShowProgress:$false -ErrorAction Stop } catch {
         Write-Warning "⚠️ Could not connect to Exchange Online: $_"
     }
 
     while (-not $Mailbox -and $Waited -lt $MaxWaitTime) {
-        try {
-            $Mailbox = Get-Mailbox -Identity $UPN -ErrorAction Stop
-        } catch {
+        try { $Mailbox = Get-Mailbox -Identity $UPN -ErrorAction Stop } catch {
             Start-Sleep -Seconds $Interval
             $Waited += $Interval
         }
     }
 
     if (-not $Mailbox) {
-        Write-Warning "⚠️ Mailbox for $UPN was not ready after $MaxWaitTime seconds. Skipping calendar permissions."
+        Write-Warning "⚠️ Mailbox for $UPN not ready after $MaxWaitTime seconds. Skipping calendar permissions."
         Disconnect-ExchangeOnline -Confirm:$false
     } else {
-        # -- Set Time Zone --
+        # -- Mailbox configuration --
         try {
             Set-MailboxRegionalConfiguration -Identity $UPN -TimeZone $UserTimeZone -LocalizeDefaultFolderName
             Write-Host "🌍 Set mailbox time zone to: $UserTimeZone"
@@ -188,7 +177,7 @@ do {
             Write-Warning "⚠️ Failed to set mailbox time zone: $_"
         }
 
-        # -- Calendar Sharing --
+        # -- Calendar sharing --
         try {
             $AllStaffUsers = Get-MgGroupMember -GroupId $AllStaffId -All | Where-Object {
                 $_.AdditionalProperties.userPrincipalName -ne $null
@@ -197,13 +186,8 @@ do {
             foreach ($Member in $AllStaffUsers) {
                 $OtherUPN = $Member.AdditionalProperties.userPrincipalName
                 if ($OtherUPN -ne $UPN) {
-                    Add-MailboxFolderPermission -Identity "$OtherUPN:\Calendar" `
-                                                -User $UPN `
-                                                -AccessRights Reviewer -ErrorAction SilentlyContinue
-
-                    Add-MailboxFolderPermission -Identity "$UPN:\Calendar" `
-                                                -User $OtherUPN `
-                                                -AccessRights Reviewer -ErrorAction SilentlyContinue
+                    Add-MailboxFolderPermission -Identity "{$OtherUPN}:\Calendar" -User $UPN -AccessRights Reviewer -ErrorAction SilentlyContinue
+                    Add-MailboxFolderPermission -Identity "{$UPN}:\Calendar"    -User $OtherUPN -AccessRights Reviewer -ErrorAction SilentlyContinue
                 }
             }
 
@@ -238,7 +222,7 @@ do {
                          -Body $EmailBody `
                          -BodyAsHtml `
                          -SmtpServer $SMTPServer `
-                         -Port 587 `
+                         -Port $SMTPPort `
                          -UseSsl `
                          -Credential (Get-Credential)
 
@@ -254,7 +238,7 @@ do {
     Write-Host "Username  : $Username"
     Write-Host "UPN       : $UPN"
     Write-Host "Password  : $Password"
-    Write-Host "Groups    : $($GroupsAssigned -join ", ")"
+    Write-Host "Groups    : $($GroupsAssigned -join ', ')"
     Write-Host "License   : $LicenseStatus"
     Write-Host "Time Zone : $UserTimeZone"
     Write-Host "Created   : $TimeStamp"
