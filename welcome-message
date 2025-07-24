@@ -1,0 +1,67 @@
+# ------------------ PREREQUISITES ------------------
+<#
+This script sends a welcome email to newly provisioned users using Microsoft Graph.
+
+✅ Required Modules:
+    - Microsoft.Graph:          Install-Module Microsoft.Graph -Scope CurrentUser -Force
+
+✅ Required Microsoft Graph Permissions:
+    - Mail.Send
+    - User.Read
+
+✅ Notes:
+    - Script sends as the currently authenticated Graph user ("me")
+    - Customize links and domain as needed for your environment
+#>
+
+# ------------------ AUTHENTICATE ------------------
+Connect-MgGraph -Scopes "Mail.Send", "User.Read"
+
+# ------------------ USER INPUT ------------------
+$DomainName = "yourdomain.com"
+$FirstName  = Read-Host "Enter user's first name"
+$LastName   = Read-Host "Enter user's last name"
+$JobTitle   = Read-Host "Enter user's job title"
+$UPN        = "$($FirstName).$($LastName)@$DomainName"
+
+# ------------------ RESOURCE LINKS ------------------
+$WelcomePackUrl = "https://yourtenant.sharepoint.com/sites/onboarding/welcome-pack"
+$PoliciesUrl    = "https://yourtenant.sharepoint.com/sites/onboarding/policies"
+$SupportEmail   = "support@$DomainName"
+
+# ------------------ EMAIL CONTENT ------------------
+$HtmlBody = @"
+<h2>Welcome to [Your Company]</h2>
+
+<p>Dear <strong>$FirstName</strong>,</p>
+
+<p>We're excited to welcome you to [Your Company] as our new <strong>$JobTitle</strong>. Your account has been successfully provisioned, and access details will be provided on your first day by the IT team.</p>
+
+<p>To help you get started, please review the following resources:</p>
+<ul>
+  <li><a href='$WelcomePackUrl'>Induction Paperwork</a></li>
+  <li><a href='$PoliciesUrl'>Company Policies</a></li>
+  <li><a href='mailto:$SupportEmail'>IT Support Contact</a></li>
+</ul>
+
+<p>If you have any questions prior to starting, feel free to reach out to our support team using the link above.</p>
+
+<p>We look forward to supporting your journey here at [Your Company].</p>
+
+<p>Kind regards,<br/>
+<strong>The IT Team</strong></p>
+"@
+
+# ------------------ SEND EMAIL ------------------
+try {
+    $EmailParams = @{
+        Subject      = "Welcome to [Your Company]!"
+        ToRecipients = @(@{ EmailAddress = @{ Address = $UPN } })
+        Body         = @{ ContentType = "HTML"; Content = $HtmlBody }
+    }
+
+    Send-MgUserMail -UserId "me" -Message $EmailParams -SaveToSentItems
+    Write-Host "📧 Welcome email sent via Microsoft Graph to $UPN"
+} catch {
+    Write-Warning "⚠️ Failed to send email: $_"
+}
