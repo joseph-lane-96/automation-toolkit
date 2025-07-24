@@ -14,6 +14,7 @@ All scripts are anonymized for fast integration into your own infrastructure ðŸ”
 | `create-user-onprem.ps1`     | Create on-prem AD user with home directory setup         |
 | `create-user-onprem-azure.ps1` | Create hybrid user for Azure-integrated environments  |
 | `user-offboarding.ps1`       | Offboard user and wipe associated Intune-managed devices |
+| `welcome-message.ps1`        | Sending a welcome message to new users                   |
 | `report-assets.py`           | *(Coming Soon)* Export asset list to CSV for audit use   |
 
 ---
